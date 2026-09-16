@@ -34,14 +34,14 @@ def initialize_database():
 def create_media_asset(image_id, original_filename, stored_path, content_type):
     query = """
     INSERT INTO media_assets (
-        image_id,
+        id,
         original_filename,
         stored_path,
         content_type,
         status
     )
     VALUES (%s, %s, %s, %s, 'processing')
-    RETURN *;
+    RETURNING *;
     """
 
     with get_connection() as conn:
@@ -63,7 +63,7 @@ def get_media_asset(image_id):
             return cur.fetchone()
 
 
-def update_media_asset(image_id, new_status, qdrant_point_id=None, error=None):
+def update_media_asset_status(image_id, new_status, qdrant_point_id=None, error=None):
     query = """
     UPDATE media_assets
     SET
@@ -72,7 +72,7 @@ def update_media_asset(image_id, new_status, qdrant_point_id=None, error=None):
         error = %s,
         updated_at = CURRENT_TIMESTAMP
     WHERE id = %s
-    RETURN *;
+    RETURNING *;
     """
 
     with get_connection() as conn:
