@@ -134,7 +134,7 @@ async def upload(
 
         uploaded_files.append(
             {
-                "image_id": image_id,
+                "image_id": str(image_id),
                 "original_filename": file.filename,
                 "stored_path": str(file_path),
                 "status": "processing",
@@ -143,7 +143,7 @@ async def upload(
         )
 
     return {
-        "status": "completed",
+        "status": "accepted",
         "uploaded_count": len(uploaded_files),
         "files": uploaded_files,
     }
