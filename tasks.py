@@ -14,11 +14,8 @@ client = QdrantClient(url=QDRANT_URL)
 
 @celery_app.task(name="task.process_image")
 def process_image(image_id: str):
-    asset_id = (
-    image_id
-    if isinstance(image_id, uuid.UUID)
-    else uuid.UUID(image_id)
-    )
+    asset_id = uuid.UUID(str(image_id))
+    image_id_str = str(asset_id)
 
     try:
         asset = get_media_asset(asset_id)
@@ -32,11 +29,11 @@ def process_image(image_id: str):
             vector = model.encode(rgb_image).tolist()
 
         point = PointStruct(
-            id=image_id,
+            id=image_id_str,
             vector=vector,
             payload={
                 "path": stored_path,
-                "media_asset_id": image_id,
+                "media_asset_id": image_id_str,
                 "original_filename": asset["original_filename"],
             },
         )
@@ -54,7 +51,7 @@ def process_image(image_id: str):
 
         return {
             "status": "completed",
-            "image_id": image_id,
+            "image_id": image_id_str,
         }
     except Exception as e:
         update_media_asset_status(
