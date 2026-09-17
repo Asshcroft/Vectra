@@ -24,6 +24,8 @@ USER appuser
 
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('clip-ViT-B-32')"
 
+ENV HF_HUB_OFFLINE=1
+
 COPY --chown=appuser:appuser . .
 
 EXPOSE 8000

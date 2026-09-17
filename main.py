@@ -5,11 +5,14 @@ from fastapi import FastAPI, Form, UploadFile, File, HTTPException, status
 from contextlib import asynccontextmanager
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, VectorParams
 from fastapi.responses import HTMLResponse
 from pathlib import Path
 from pydantic import WithJsonSchema
-from database import update_media_asset_status, create_media_asset, get_media_asset
-from tasks import process_image
+from database import update_media_asset_status, create_media_asset, get_media_asset, initialize_database
+from celery_app import celery_app
+from config import QDRANT_COLLECTION, QDRANT_URL
+
 
 BinaryUploadFile = Annotated[
     UploadFile,
@@ -22,9 +25,18 @@ BinaryUploadFile = Annotated[
 # Менеджер контекста жизненного цикла приложения. Загружаем модель и клиент
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    initialize_database()
     # Load the ML model
     model = SentenceTransformer('clip-ViT-B-32')
-    client = QdrantClient(url="http://localhost:6333")
+    client = QdrantClient(url=QDRANT_URL)
+    if not client.collection_exists(QDRANT_COLLECTION):
+        client.create_collection(
+            collection_name=QDRANT_COLLECTION,
+            vectors_config=VectorParams(
+                size=512,
+                distance=Distance.COSINE,
+            ),
+        )
     app.state.model = model
     app.state.client = client
     yield
@@ -54,7 +66,7 @@ async def search(
     vector = model.encode(query).tolist()
     # Векторный поиск с лимитом в выход пяти наиболее похожих изображений
     results = client.query_points(
-        collection_name="my_photos",
+        collection_name=QDRANT_COLLECTION,
         query=vector,
         limit=5
     )
@@ -104,7 +116,10 @@ async def upload(
         )
 
         try:
-            task = process_image.delay(image_id=image_id)
+            task = celery_app.send_task(
+                "task.process_image",
+                args=[str(image_id)],
+            )
         except Exception as error:
             update_media_asset_status(
                 image_id=image_id,
