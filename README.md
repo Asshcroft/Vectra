@@ -4,14 +4,14 @@ The entire application runs in Docker Compose. You do not need to start FastAPI,
 
 ## Prerequisites
 
-Install the following programs:
+Install:
 
 - [Git](https://git-scm.com/downloads)
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
-Make sure Docker Desktop is running before executing Docker commands.
+Make sure Docker Desktop is running.
 
-You can verify the installation with:
+Verify the installation:
 
 ```bash
 git --version
@@ -24,18 +24,11 @@ docker compose version
 ### 1. Clone the repository
 
 ```bash
-git clone <your-repository-url>
+git clone <repository-url>
 cd Vectra
 ```
 
-Replace `<your-repository-url>` with the URL of this GitHub repository.
-
-For example:
-
-```bash
-git clone https://github.com/username/Vectra.git
-cd Vectra
-```
+Replace `<repository-url>` with the URL of this GitHub repository.
 
 ### 2. Build and start the application
 
@@ -43,26 +36,25 @@ cd Vectra
 docker compose up --build -d
 ```
 
-This command:
+This command builds the application image and starts:
 
-1. Builds the Docker image for the API and Celery worker.
-2. Starts PostgreSQL.
-3. Starts Redis.
-4. Starts Qdrant.
-5. Starts the Celery worker.
-6. Starts the FastAPI server.
+- FastAPI API
+- Celery worker
+- PostgreSQL
+- Redis
+- Qdrant
 
-The first build may take several minutes because Docker must download the Python dependencies and the CLIP model.
+The first build may take several minutes because Docker downloads the dependencies and CLIP model.
 
-The `-d` option starts the containers in the background, so the terminal remains available.
+The `-d` option runs the containers in the background.
 
-### 3. Check that all services are running
+### 3. Check the services
 
 ```bash
 docker compose ps
 ```
 
-The output should contain these services:
+The following services should be running:
 
 | Service | Purpose |
 |---|---|
@@ -72,9 +64,13 @@ The output should contain these services:
 | `redis` | Celery task queue |
 | `qdrant` | Image vectors and similarity search |
 
-All services should have the `running` or `healthy` status.
+If a service failed to start, inspect the logs:
 
-If a service failed to start, inspect its logs:
+```bash
+docker compose logs --tail=100
+```
+
+Logs for a particular service can be viewed separately:
 
 ```bash
 docker compose logs api
@@ -84,23 +80,17 @@ docker compose logs redis
 docker compose logs qdrant
 ```
 
-To display the latest logs from all services:
-
-```bash
-docker compose logs --tail=100
-```
-
 ## Using the Application
 
 ### 1. Open Swagger UI
 
-After the containers start, open:
+Open the following address:
 
 ```text
 http://localhost:8000/docs
 ```
 
-Swagger UI allows you to upload images, check their processing status, and perform text searches without creating a separate frontend.
+Swagger UI allows you to upload images, check their processing status, and perform searches without a separate frontend.
 
 ### 2. Upload an image
 
@@ -109,10 +99,10 @@ In Swagger UI:
 1. Open `POST /upload`.
 2. Click **Try it out**.
 3. Click **Choose Files**.
-4. Select one or more images.
+4. Select one or multiple images.
 5. Click **Execute**.
 
-A successful request returns HTTP status:
+A successful request returns:
 
 ```text
 202 Accepted
@@ -133,9 +123,9 @@ Example response:
 }
 ```
 
-The `202 Accepted` response means that the image was saved and added to the processing queue. It does not mean that vector generation has already finished.
+The `202 Accepted` response means that the image was saved and added to the processing queue. Vector generation continues in the background.
 
-Copy the returned `image_id`. It is required to check the processing status.
+Save the returned `image_id` because it is required to check the processing status.
 
 ### 3. Check the image status
 
@@ -143,26 +133,26 @@ In Swagger UI:
 
 1. Open `GET /images/{image_id}/status`.
 2. Click **Try it out**.
-3. Paste the `image_id` returned by `/upload`.
+3. Enter the `image_id` returned by `/upload`.
 4. Click **Execute**.
 
-Possible status values:
+Possible statuses:
 
 | Status | Meaning |
 |---|---|
-| `processing` | The image is waiting in the queue or is being processed |
-| `completed` | The embedding was created and saved in Qdrant |
-| `failed` | An error occurred during processing |
+| `processing` | The task is waiting or running |
+| `completed` | The image vector was stored successfully |
+| `failed` | Processing ended with an error |
 
-Wait until the status becomes `completed` before testing search.
+Wait until the status becomes `completed` before searching for the image.
 
-### 4. Search for an image
+### 4. Search for images
 
 In Swagger UI:
 
 1. Open `POST /search`.
 2. Click **Try it out**.
-3. Enter an English search query, for example `red car`.
+3. Enter an English query, such as `red car`.
 4. Click **Execute**.
 
 Example response:
@@ -176,17 +166,17 @@ Example response:
 ]
 ```
 
-The `score` value represents the similarity between the text query and the image. A higher score usually means a better match.
+The `score` represents the semantic similarity between the query and image. A higher score usually indicates a better match.
 
 ## Monitoring Background Processing
 
-To follow FastAPI and Celery logs in real time:
+Follow API and Celery worker logs in real time:
 
 ```bash
 docker compose logs -f api worker
 ```
 
-During a successful upload, the logs should show:
+During successful processing, the logs should show:
 
 1. FastAPI accepts the upload.
 2. Celery receives the task.
@@ -194,25 +184,43 @@ During a successful upload, the logs should show:
 4. The worker sends the vector to Qdrant.
 5. The task finishes successfully.
 
-Press `Ctrl+C` to stop following the logs. This only closes the log output; the containers continue running.
+Press `Ctrl+C` to stop following the logs. The containers will continue running.
+
+## Running Diagnostic Scripts
+
+Run diagnostic scripts from the root directory:
+
+```bash
+python -m scripts.check_services
+python -m scripts.check_database
+python -m scripts.check_process_image
+```
+
+The older CLI utilities can be run with:
+
+```bash
+python -m scripts.index_photos
+python -m scripts.search
+```
+
+The required Docker services must be running before executing these scripts.
 
 ## Running the Integration Test
 
-The integration test checks the complete application flow:
+The integration test verifies the complete application flow:
 
 ```text
 Upload → PostgreSQL → Redis → Celery → CLIP → Qdrant → Search
 ```
 
-### 1. Keep the Docker services running
-
-Verify their state:
+### 1. Start the Docker services
 
 ```bash
+docker compose up -d
 docker compose ps
 ```
 
-### 2. Create a Python virtual environment
+### 2. Create a virtual environment
 
 On Windows PowerShell:
 
@@ -226,15 +234,13 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 ```
 
-After activation, the terminal should display `(.venv)` before the current path.
+After activation, `(.venv)` should appear before the current terminal path.
 
-### 4. Install test dependencies
+### 4. Install development dependencies
 
 ```powershell
 python -m pip install -r requirements-dev.txt
 ```
-
-The development requirements include the main application dependencies and Pytest.
 
 ### 5. Run the integration test
 
@@ -251,21 +257,21 @@ tests/test_integration.py::test_upload_process_and_search PASSED
 The test:
 
 1. Creates a temporary image in memory.
-2. Uploads it to the running API.
+2. Uploads it to the API.
 3. Receives its `image_id`.
-4. Waits until background processing is complete.
+4. Waits for background processing.
 5. Sends a semantic search request.
 6. Checks that the uploaded image appears in the results.
 
-## Stopping the Application
+## Managing the Application
 
-### Stop all containers
+### Stop and remove containers
 
 ```bash
 docker compose down
 ```
 
-This removes the containers and network but preserves the PostgreSQL, Redis, and Qdrant volumes.
+This removes the containers and network but preserves the database volumes.
 
 ### Start the application again
 
@@ -273,9 +279,9 @@ This removes the containers and network but preserves the PostgreSQL, Redis, and
 docker compose up -d
 ```
 
-You do not need to use `--build` if the source code and dependencies have not changed.
+You do not need `--build` if the source code and dependencies have not changed.
 
-### Rebuild after changing the code
+### Rebuild after changing code or dependencies
 
 ```bash
 docker compose up --build -d
@@ -283,10 +289,10 @@ docker compose up --build -d
 
 Use this command after changing:
 
-- Python source files;
-- `requirements.txt`;
-- `Dockerfile`;
-- Docker Compose configuration.
+- Python source files
+- `requirements.txt`
+- `Dockerfile`
+- `docker-compose.yaml`
 
 ### Stop containers without removing them
 
@@ -294,19 +300,19 @@ Use this command after changing:
 docker compose stop
 ```
 
-Start the stopped containers again:
+Start them again:
 
 ```bash
 docker compose start
 ```
 
-### Delete containers and stored data
+### Delete containers and persistent data
 
 ```bash
 docker compose down -v
 ```
 
-> Warning: the `-v` option deletes the project volumes, including PostgreSQL records and Qdrant vectors. Use it only when you intentionally want to reset the project.
+> Warning: `docker compose down -v` deletes PostgreSQL data, Qdrant vectors, and other data stored in Docker volumes.
 
 ## Useful Addresses
 
